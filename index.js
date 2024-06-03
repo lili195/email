@@ -24,10 +24,8 @@ const app = express();
 const port = process.env.PORT;
 
 
-app.get('/generar-reporte', async (req, res) => {
+const createReport = async (keyword) => {
     try {
-
-        const keyword = req.query.keyword || 'gmail'; // Obtener keyword de la consulta
 
         const buffers = await getAllImageBuffers(); // Obtener los buffers de las imágenes
 
@@ -46,7 +44,7 @@ app.get('/generar-reporte', async (req, res) => {
         console.error('Error ejecutando la consulta', error.stack);
         res.status(500).send(`Error ejecutando la consulta`); //para la palabra ${keyword}
     }
-});
+}
 
 
 const getImagesUrl = async () => {

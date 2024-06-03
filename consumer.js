@@ -1,5 +1,6 @@
 const amqp = require('amqplib/callback_api');
 
+
 function consumeMessages() {
   amqp.connect('amqp://192.168.0.102:5672', (err, connection) => {
     if (err) throw err;
@@ -24,5 +25,3 @@ function consumeMessages() {
 }
 
 consumeMessages();
-
-module.exports = consumeMessages;
