@@ -1,0 +1,24 @@
+{
+    "name": "emailservice",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "start": "nodemon run index.js"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "amqplib": "^0.10.4",
+      "axios": "^1.7.2",
+      "cors": "^2.8.5",
+      "dotenv": "^16.4.5",
+      "express": "^4.19.2",
+      "nodemon": "^3.1.1",
+      "p-limit": "^5.0.0",
+      "pdfkit": "^0.15.0",
+      "pg": "^8.11.5"
+    }
+  }
+  
