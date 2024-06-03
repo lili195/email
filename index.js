@@ -39,13 +39,19 @@ const consumeMessages = () => {
                         const { keyword, email } = messageContent;
                         console.log(`Received: keyword=${keyword}, email=${email}`);
 
-                        // Simulating message processing, replace with your actual logic
-                        //await createReport(keyword);
-                        console.log(`procesando mensaje ${keyword}`)
+                        // Registro de tiempo de inicio
+                        const startTime = Date.now();
+
                         await createReport(keyword);
 
+                        const endTime = Date.now();
+                        const processingTime = (endTime - startTime)/1000; // tiempo en segundos
+                        console.log(`Processed: keyword=${keyword}, email=${email}, Processing Time: ${processingTime} s`);
+                        // axios.post('http://localhost:3000/process-time', {
+                        //     processingTime: processingTime
+                        // })
                         channel.ack(msg);
-                        console.log(`Processed: keyword=${keyword}, email=${email}`);
+
                     } catch (error) {
                         console.error('Error processing message:', error);
                         // Optional: channel.nack(msg, false, true); // requeue the message in case of error
@@ -95,6 +101,7 @@ const createReport = async (keyword) => {
         console.log('Datos obtenidos de la DB exitosamente!');
 
         const filePath = `./report-${keyword}.pdf`;
+
         await createPDF(filePath, result.rows, buffers);
         console.log(`PDF guardado en ${filePath}`);
     } catch (error) {
