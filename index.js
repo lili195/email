@@ -69,7 +69,10 @@ const consumeMessages = () => {
                         const processingTime = (endTime - startTime) / 1000; // tiempo en segundos
                         console.log(`Processed: keyword=${keyword}, email=${email}, Processing Time: ${processingTime} s`);
                         axios.post('http://localhost:3000/process-time', {
-                            processingTime: processingTime
+                            processingTime: processingTime,
+                            serverPort: port,
+                            jobKeyword: keyword,
+                            jobEmail: email
                         })
                         channel.ack(msg);
 
@@ -245,6 +248,13 @@ const sendEmailWithAttachment = async (email, keyword, pdfBuffer) => {
     }
 };
 
+app.get('/queue/healthcheck', (req, res) => {
+    //printLog("Healthcheck por parte del coordinador ... ");
+    const randomTime = Math.floor(Math.random() * (100 - 10 + 1)) + 10;
+    setTimeout(() => {
+        res.sendStatus(200);
+    }, randomTime);
+});
 
 app.listen(port, () => {
     console.log(`App escuchando en el puerto ${port}`);
