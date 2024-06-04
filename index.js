@@ -116,7 +116,7 @@ const getImagesUrl = async () => {
         try {
             const response = await axios.get("https://api.thecatapi.com/v1/images/search?limit=100", {
                 headers: {
-                    'x-api-key': process.env.API_KEY
+                    'x-api-key': 'live_Ree0qajxpY8ntiBmPLG0vgJtHByWFLfP7FB6UXozaAopOJScgKaIWQSEGfJiLezl'
                 }
             });
             const imageUrls = response.data.map(item => item.url);
@@ -212,8 +212,8 @@ const createPDF = async (data, buffers) => {
 };
 
 
-const emailUser = process.env.EMAIL_USER
-const emailPass = process.env.EMAIL_PASS
+const emailUser = 'juana.sanchez20011110@gmail.com'
+const emailPass = 'pbiqvjbbgiivvemq'
 
 const sendEmailWithAttachment = async (email, keyword, pdfBuffer) => {
     let transporter = nodemailer.createTransport({
