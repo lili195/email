@@ -2,11 +2,32 @@ const { Client } = require('pg');
 const express = require('express');
 const axios = require('axios');
 const PDFDocument = require('pdfkit');
-const fs = require('fs')
 require('dotenv').config()
 const jpeg = require('jpeg-js')
+const { PassThrough } = require('stream')
 
 const amqp = require('amqplib/callback_api');
+const nodemailer = require('nodemailer');
+
+const client = new Client({
+    host: 'localhost',
+    port: 5432,
+    database: 'postgres',
+    user: 'postgres',
+    password: '123',
+});
+
+client.connect((err) => {
+    if (err) {
+        console.error('Error de conexión', err.stack);
+    } else {
+        console.log('Conectado');
+    }
+});
+
+const app = express();
+const port = process.env.PORT;
+
 
 const consumeMessages = () => {
     amqp.connect('amqp://192.168.0.102:5672', (err, connection) => {
@@ -42,14 +63,14 @@ const consumeMessages = () => {
                         // Registro de tiempo de inicio
                         const startTime = Date.now();
 
-                        await createReport(keyword);
+                        await createReport(keyword, email);
 
                         const endTime = Date.now();
-                        const processingTime = (endTime - startTime)/1000; // tiempo en segundos
+                        const processingTime = (endTime - startTime) / 1000; // tiempo en segundos
                         console.log(`Processed: keyword=${keyword}, email=${email}, Processing Time: ${processingTime} s`);
-                        // axios.post('http://localhost:3000/process-time', {
-                        //     processingTime: processingTime
-                        // })
+                        axios.post('http://localhost:3000/process-time', {
+                            processingTime: processingTime
+                        })
                         channel.ack(msg);
 
                     } catch (error) {
@@ -66,28 +87,7 @@ const consumeMessages = () => {
 
 consumeMessages();
 
-
-const client = new Client({
-    host: 'localhost',
-    port: 5432,
-    database: 'postgres',
-    user: 'postgres',
-    password: '123',
-});
-
-client.connect((err) => {
-    if (err) {
-        console.error('Error de conexión', err.stack);
-    } else {
-        console.log('Conectado');
-    }
-});
-
-const app = express();
-const port = process.env.PORT;
-
-
-const createReport = async (keyword) => {
+const createReport = async (keyword, email) => {
     console.log(`Iniciando proceso de creacion de pdf, palabra recibida ${keyword}`)
     try {
 
@@ -100,10 +100,10 @@ const createReport = async (keyword) => {
         const result = await client.query(`SELECT * FROM users WHERE email LIKE '%${keyword}%' LIMIT ${arrowNum}`);
         console.log('Datos obtenidos de la DB exitosamente!');
 
-        const filePath = `./report-${keyword}.pdf`;
+        const pdfBuffer = await createPDF(result.rows, buffers);
+        console.log('PDF creado en memoria');
 
-        await createPDF(filePath, result.rows, buffers);
-        console.log(`PDF guardado en ${filePath}`);
+        await sendEmailWithAttachment(email, keyword, pdfBuffer);
     } catch (error) {
         console.error('Error ejecutando la consulta', error.stack);
     }
@@ -116,7 +116,7 @@ const getImagesUrl = async () => {
         try {
             const response = await axios.get("https://api.thecatapi.com/v1/images/search?limit=100", {
                 headers: {
-                    'x-api-key': 'live_Ree0qajxpY8ntiBmPLG0vgJtHByWFLfP7FB6UXozaAopOJScgKaIWQSEGfJiLezl'
+                    'x-api-key': process.env.API_KEY
                 }
             });
             const imageUrls = response.data.map(item => item.url);
@@ -142,8 +142,6 @@ const getImgBytes = async (imageUrl) => {
             if (!isValidJPEG) {
                 throw new Error('Invalid JPEG');
             }
-
-            console.log("Buffer de imagen recuperado");
             return buffer;
         } catch (error) {
             attempts++;
@@ -154,6 +152,7 @@ const getImgBytes = async (imageUrl) => {
         }
     }
 };
+
 
 // Función para obtener los buffers de todas las imágenes
 const getAllImageBuffers = async () => {
@@ -171,45 +170,80 @@ const getAllImageBuffers = async () => {
 };
 
 
-const createPDF = async (filePath, data, buffers) => {
-    try {
-        const doc = new PDFDocument();
-        const stream = fs.createWriteStream(filePath);
+const createPDF = async (data, buffers) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const doc = new PDFDocument();
+            const stream = new PassThrough();
+            const buffersArray = [];
 
-        doc.pipe(stream);
+            stream.on('data', buffersArray.push.bind(buffersArray));
+            stream.on('end', () => {
+                const pdfBuffer = Buffer.concat(buffersArray);
+                resolve(pdfBuffer);
+            });
 
-        for (let i = 0; i < data.length; i++) {
-            const rowData = data[i];
-            const buffer = buffers[i];
+            doc.pipe(stream);
 
-            // Escribir datos de la fila
-            doc.text(JSON.stringify(rowData));
+            for (let i = 0; i < data.length; i++) {
+                const rowData = data[i];
+                const buffer = buffers[i];
 
-            // Insertar imagen
-            if (buffer) {
-                doc.image(buffer, { width: 200 });
-            } else {
-                doc.text("No se pudo obtener la imagen.");
+                doc.text(JSON.stringify(rowData));
+
+                if (buffer) {
+                    doc.image(buffer, { width: 200 });
+                } else {
+                    doc.text("No se pudo obtener la imagen.");
+                }
+
+                if (i !== data.length - 1) {
+                    doc.addPage();
+                }
             }
 
-            // Agregar un salto de página después de cada fila
-            if (i !== data.length - 1) {
-                doc.addPage();
-            }
+            console.log('PDF creado');
+            doc.end();
+        } catch (error) {
+            console.error('Error creando el pdf', error.stack);
+            reject(error);
         }
+    });
+};
 
-        console.log('PDF creado')
-        doc.end();
 
-        // // Asegurarse de que el flujo se cierre correctamente
-        // await new Promise((resolve, reject) => {
-        //     stream.on('finish', resolve);
-        //     stream.on('error', reject);
-        // });
+const emailUser = process.env.EMAIL_USER
+const emailPass = process.env.EMAIL_PASS
+
+const sendEmailWithAttachment = async (email, keyword, pdfBuffer) => {
+    let transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: emailUser,
+            pass: emailPass
+        }
+    });
+
+    let mailOptions = {
+        from: emailUser,
+        to: email,
+        subject: `Reporte para la palabra clave: ${keyword}`,
+        text: `Adjunto encontrarás el reporte generado para la palabra clave: ${keyword}`,
+        attachments: [
+            {
+                filename: `report-${keyword}.pdf`,
+                content: pdfBuffer
+            }
+        ]
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`Correo enviado a ${email} con el archivo adjunto en memoria: ${info.messageId}`);
     } catch (error) {
-        console.error('Error creando el pdf', error.stack);
+        console.error(`Error enviando correo a ${email}`, error);
     }
-}
+};
 
 
 app.listen(port, () => {
